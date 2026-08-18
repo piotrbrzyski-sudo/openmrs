@@ -1,0 +1,58 @@
+name: Optional public OpenMRS demo smoke test
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openmrs-public-demo-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HEADLESS: "true"
+      BROWSER: chrome
+      OPENMRS_UI_BASE_URL: https://demo.openmrs.org/openmrs
+      OPENMRS_API_BASE_URL: https://demo.openmrs.org/openmrs/ws/rest/v1
+      OPENMRS_USERNAME: ${{ secrets.OPENMRS_USERNAME || 'admin' }}
+      OPENMRS_PASSWORD: ${{ secrets.OPENMRS_PASSWORD || 'Admin123' }}
+      OPENMRS_LOGIN_LOCATION: Inpatient Ward
+      OPENMRS_VISIT_TYPE: Facility Visit
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Set up Chrome
+        uses: browser-actions/setup-chrome@v2
+
+      - name: Run the public demo smoke scenario
+        run: >
+          mvn --batch-mode --no-transfer-progress clean test
+          -Dsurefire.suiteXmlFiles=src/test/resources/testng-acceptance.xml
+          -Dcucumber.filter.tags=@create
+
+      - name: Upload smoke test evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: openmrs-public-demo-smoke-reports
+          path: |
+            target/cucumber-reports
+            target/surefire-reports
+          if-no-files-found: warn
+          retention-days: 14

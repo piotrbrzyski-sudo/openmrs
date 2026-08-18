@@ -1,0 +1,51 @@
+services:
+  database:
+    image: mysql:5.7.44@sha256:4bc6bc963e6d8443453676cae56536f4b8156d78bae03c0145cbe47c2aad73bb
+    platform: linux/amd64
+    command: --character-set-server=utf8 --collation-server=utf8_general_ci
+    environment:
+      MYSQL_DATABASE: openmrs
+      MYSQL_USER: openmrs
+      MYSQL_PASSWORD: Admin123
+      MYSQL_ROOT_PASSWORD: Admin123
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping --host=localhost --user=root --password=$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    volumes:
+      - openmrs-database:/var/lib/mysql
+
+  openmrs:
+    image: openmrs/openmrs-reference-application-distro:demo@sha256:1088b9cb390665b2186790486bd41de05b8112ba397453b39e340ead9c3d9ad5
+    platform: linux/amd64
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      DB_DATABASE: openmrs
+      DB_HOST: database
+      DB_USERNAME: openmrs
+      DB_PASSWORD: Admin123
+      DB_CREATE_TABLES: "true"
+      DB_AUTO_UPDATE: "true"
+      MODULE_WEB_ADMIN: "true"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail --user admin:Admin123 http://localhost:8080/openmrs/ws/rest/v1/session | grep --quiet '\"authenticated\":true'",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 60
+      start_period: 3m
+    ports:
+      - "8080:8080"
+    volumes:
+      - openmrs-application:/usr/local/tomcat/.OpenMRS
+
+volumes:
+  openmrs-database:
+  openmrs-application:
